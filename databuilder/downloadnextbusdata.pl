@@ -9,6 +9,7 @@ my $json = JSON::Any->new();
 my $routes = get_proximo('/routes.json');
 
 my %stops = ();
+my %runs = ();
 
 foreach my $route (@{$routes->{items}}) {
     my $route_id = $route->{id};
@@ -25,6 +26,12 @@ foreach my $route (@{$routes->{items}}) {
 
         warn " * $run_name:\n";
 
+        my $stop_ids = [];
+        $runs{$run_id} = {
+            route => $route_id,
+            stops => $stop_ids,
+        };
+
         my $stops = get_proximo("/routes/$route_id/runs/$run_id/stops.json");
 
         foreach my $stop (@{$stops->{items}}) {
@@ -39,6 +46,7 @@ foreach my $route (@{$routes->{items}}) {
                 lon => $stop_lon,
                 runs => [],
             };
+            push @$stop_ids, $stop_id;
 
             push @{$stops{$stop_id}{runs}}, $run_id;
         }
@@ -53,6 +61,10 @@ foreach my $stop (values %stops) {
 
 open(OUT, '>', 'munistops.json');
 print OUT $json->encode(\%stops);
+close(OUT);
+
+open(OUT, '>', 'muniruns.json');
+print OUT $json->encode(\%runs);
 close(OUT);
 
 sub get_proximo {
