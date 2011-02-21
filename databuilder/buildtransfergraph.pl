@@ -14,17 +14,28 @@ my $transfers_dbh = DBI->connect("dbi:SQLite:dbname=munistops.db","","") || die 
 
 foreach my $stop_id (keys %$stops) {
 
-    next unless $stop_id == 14958;
-
     my $stop = $stops->{$stop_id};
 
     my $at_this_stop = {};
     my $direct_transfers = {};
     my $walking_transfers = {};
+    my $nearby_stops = {};
 
     # "at this stop" is easy
     foreach my $run_id (@{$stop->{runs}}) {
         $at_this_stop->{$run_id} = $json->true,
+    }
+
+    # build nearby stops using the transfers db
+    {
+        my $sth = $transfers_dbh->prepare("SELECT end_stop_id, distance FROM transfer WHERE start_stop_id = ? ORDER BY distance");
+        $sth->execute($stop_id);
+
+        while (my ($other_stop_id, $distance) = $sth->fetchrow_array()) {
+            $nearby_stops->{$other_stop_id} = {
+                distance => $distance + 0,
+            };
+        }
     }
 
     # Now build direct_transfers by walking each of the
@@ -37,6 +48,8 @@ foreach my $stop_id (keys %$stops) {
 
         my $last_runs = {};
 
+        my $stops_travelled = 0;
+
         foreach my $other_stop_id (@{$run->{stops}}) {
 
             # Ignore all of the stops that come before
@@ -47,6 +60,8 @@ foreach my $stop_id (keys %$stops) {
                 next;
             }
             next unless $found_my_stop;
+
+            $stops_travelled++;
 
             my $other_stop = $stops->{$other_stop_id};
             my $other_run_ids = $other_stop->{runs};
@@ -68,6 +83,8 @@ foreach my $stop_id (keys %$stops) {
 
                 push @{$direct_transfers->{$other_run_id}}, {
                     transfer_at => $other_stop_id,
+                    first_take => $run_id,
+                    stops_before_transfer => $stops_travelled,
                 };
 
                 $new_last_runs->{$other_run_id} = 1;
@@ -85,6 +102,7 @@ foreach my $stop_id (keys %$stops) {
         next unless $run;
 
         my $found_my_stop = 0;
+        my $stops_travelled = 0;
 
         foreach my $off_stop_id (@{$run->{stops}}) {
 
@@ -98,6 +116,8 @@ foreach my $stop_id (keys %$stops) {
                 $found_my_stop = 1;
             }
             next unless $found_my_stop;
+
+            $stops_travelled++;
 
             my $off_stop = $stops->{$off_stop_id};
 
@@ -129,6 +149,8 @@ foreach my $stop_id (keys %$stops) {
                         get_off_at => $off_stop_id,
                         get_on_at => $on_stop_id,
                         distance => $distance,
+                        first_take => $run_id,
+                        stops_before_transfer => $stops_travelled,
                     };
                     
                     $distance_for_run->{$other_run_id} = $distance;
@@ -143,6 +165,7 @@ foreach my $stop_id (keys %$stops) {
         at_this_stop => $at_this_stop,
         direct_transfers => $direct_transfers,
         walking_transfers => $walking_transfers,
+        nearby_stops => $nearby_stops,
     };
 
     my $fn = "transfers/${stop_id}-out.json";
