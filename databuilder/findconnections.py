@@ -111,7 +111,7 @@ def options(start_stop_id, end_stop_id, try_nearby_stops=True, runs_already_used
             for route in options(start_stop_id, nearby_stop_id, try_nearby_stops=False, runs_already_used=runs_already_used):
                 yield route
         for nearby_stop_id in start_stop_transfers["nearby_stops"]:
-            for route in options(nearby_stop_id, start_stop_id, try_nearby_stops=False, runs_already_used=runs_already_used):
+            for route in options(nearby_stop_id, end_stop_id, try_nearby_stops=False, runs_already_used=runs_already_used):
                 yield route
 
 # Given a route, determine if it has any hops where
